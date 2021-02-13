@@ -1,19 +1,27 @@
-//w2api - Version 0.0.1
-const sulla = require('sulla-hotfix');
-var fs = require('fs');
-var async = require("async");
-var request = require('request');
-var moment = require('moment');
+//w2api - Version 0.0.2
+global.openWA = require('@open-wa/wa-automate');
+const fs = require('fs');
+const async = require("async");
+const request = require('request');
+const moment = require('moment');
 const mime = require('mime-types');
 global.uaOverride = 'WhatsApp/2.16.352 Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Safari/605.1.15';
 global.WA_CLIENT = {};
 
 /*
+* Function to read files as base64 string
+*/
+function base64Encode(file) {
+  var body = fs.readFileSync(file);
+  return body.toString('base64');
+};
+
+/*
 * WhatsApp API SUPER CLASS
 * Personal regards to:
-* Mohhamed Shah (Sulla Hotfix) - 
+* Mohhamed Shah (openWA) - 
 * Peter Sírka (TotalJS) - 
-* This library was built using SUllaHotfix and pieces of 
+* This library was built using openWA and pieces of 
 */
 function WHATS_API(USER_ID) {
   console.log("\n====================================================");
@@ -35,14 +43,14 @@ function WHATS_API(USER_ID) {
 * 3 - viewed
 * 4 - listened
 */
-var SANITIZE_ACK = function(data){
+var SANITIZE_ACK = function(instanceID,data){
   return JSON.stringify({
       ack: [{
         id: data.id._serialized,
         chatId: data.id.remote,
         status: (data.ack == 1 ? 'sent' : (data.ack == 2 ? 'delivered' : 'viewed'))
       }],
-      instanceId: that.INSTANCE
+      instanceId: instanceID
   });
 };
 
@@ -50,24 +58,27 @@ var SANITIZE_ACK = function(data){
 * Sanitizing the type of message response i want on webhook POST request
 * you can edit this method but pay attention to documentation.
 */
-var SANITIZE_MSG = function(data) {
+var SANITIZE_MSG = function(instanceID,data) {
   return JSON.stringify({
     messages: [{ 
       id: data.id,
       body: data.body,
+      filelink: (data.filelink ? data.filelink : null),
       fromMe: false,
       self: 0,
       isForwarded: data.isForwarded,
       author: data.from,
       time: data.t,
+      lat: data.lat,
+      lng: data.lng,
       chatId: data.chat.id,
       type: data.type,
       senderName: data.sender.verifiedName,
       caption: (data.caption ? data.caption : null),
       quotedMsgBody: (data.quotedMsgObj ? data.quotedMsgObj : null),
-      chatName: data.sender.formattedName 
+      chatName: data.sender.formattedName,
     }],
-    instanceId: that.INSTANCE
+    instanceId: instanceID
   });
 };
 
@@ -77,7 +88,7 @@ var SANITIZE_MSG = function(data) {
 */
 WHATS_API.prototype.PROCESS_MESSAGE = function(data){
   var that = this;
-  var SANITIZED = SANITIZE_MSG(data);
+  var SANITIZED = SANITIZE_MSG(that.INSTANCE,data);
   request({
     method: 'POST',
     url:  that.WEBHOOK,
@@ -102,7 +113,7 @@ WHATS_API.prototype.PROCESS_MESSAGE = function(data){
 */
 WHATS_API.prototype.PROCESS_ACK = function(data){
   var that = this;
-  var SANITIZED = SANITIZE_ACK(data);
+  var SANITIZED = SANITIZE_ACK(that.INSTANCE,data);
   request({
     method: 'POST',
     url:  that.WEBHOOK,
@@ -126,11 +137,11 @@ WHATS_API.prototype.PROCESS_ACK = function(data){
 * if you have any knowleadge about it - help me to improve
 */
 WHATS_API.prototype.PROCESS_STATE = function(data){
-  console.lgo("STATE CHANGED: ",data);
+  console.log("[STATE CHANGED] -",data);
 };
 
 /*
-* Prototype configuration for setup events incoming from sulla module
+* Prototype configuration for setup events incoming from openWA module
 * keep your hands away from this
 */
 WHATS_API.prototype.SETUP = function(CLIENT,WEBHOOK_INPUT,TOKEN_INPUT) {
@@ -142,10 +153,19 @@ WHATS_API.prototype.SETUP = function(CLIENT,WEBHOOK_INPUT,TOKEN_INPUT) {
     //CRECKING IF MESSAGE HAVE ANY MEDIA TYPE EMBED
      if (message.mimetype) {
       //SAVING MEDIA RECEIVED AND EXPOSE ADDRESS TO WEB
-      const mediaData = sulla.decryptMedia(message,uaOverride).then(function(DECRYPTED_DATA){
+      const mediaData = openWA.decryptMedia(message,uaOverride).then(function(DECRYPTED_DATA){
         var filename = `${message.t}.${mime.extension(message.mimetype)}`;
-        var imageBuffer = Buffer.from(DECRYPTED_DATA, 'base64');
-        that.PROCESS_MESSAGE(message);
+        fs.writeFile(process.cwd()+'/public/cdn/'+filename, Buffer.from(DECRYPTED_DATA, 'base64'), 'base64',function(err) {
+          if(err){
+            console.log("#Error on saving file");
+            message['body'] = `data:${message.mimetype};base64,${message['body']}`;
+            that.PROCESS_MESSAGE(message);
+          } else {
+            message['body'] = `data:${message.mimetype};base64,${base64Encode(process.cwd()+'/public/cdn/'+filename)}`;
+            message['filelink'] = F.ip+':'+F.port+'/cdn/'+filename;
+            that.PROCESS_MESSAGE(message);
+          }
+        });
       });
     } else {
       that.PROCESS_MESSAGE(message);
@@ -161,16 +181,15 @@ WHATS_API.prototype.SETUP = function(CLIENT,WEBHOOK_INPUT,TOKEN_INPUT) {
 
 WHATS_API.prototype.SET_QRCODE = function(code){
   var that = this;
+  if(qrCodeManager){
+    qrCodeManager.send({ qr: code });
+  };
   that.QR_CODE = code;
 };
 
 module.exports = WHATS_API;
 
 ON('ready', function(){
-  console.log("\n##############################################");
-  console.log("#######      STARTING SERVICE              #####");
-  console.log("##############################################\n");
-  console.log("@ Servidor Identificado: ",F.config['instance']);
 
   /*
   * Creating Connection for WhatsApp and expose conection to WA_CLIENT global var
@@ -179,29 +198,32 @@ ON('ready', function(){
   WA_CLIENT = new WHATS_API(F.config['instance']);
 
   /*
-  * Declare event getter for when qrcode is available from sulla-api
+  * Declare event getter for when qrcode is available from openWA-api
   */
-  sulla.ev.on('qr.**', function (qrcode,sessionId) {
+  openWA.ev.on('qr.**', function (qrcode,sessionId) {
     //SETTING QRCODE AVAILABLE ON address/qrCode
     WA_CLIENT.SET_QRCODE(qrcode);
-
-    // var imageBuffer = Buffer.from(qrcode, 'base64');
-    // fs.writeFileSync(F.path.public('/QR_CODES/qr_code_'+(sessionId ? sessionId.replace('.','') : '')+'.png') , imageBuffer);
   });
 
   /*
-  * Finally creating connection and start headless webbrowser
+  * Finally creating connection and start headless webBrowser
   * Attention to headless param
   */
-  sulla.create(F.config['instance'],{
+  openWA.create("/whatsSessions/"+F.config['instance'],{
     headless: true,
-    autoRefresh:false, 
+    autoRefresh:true, 
     qrRefreshS:30,
-    killTimer: 60
+    killTimer: 6000,
+    blockCrashLogs: true, 
+    bypassCSP: true,
+    browserRevision: "737027"
     // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     // executablePath: '/var/www/app/node_modules/puppeteer/.local-chromium/linux-706915'
   }).then(function(client){
     //EXECUTING MODULE SETUP
+    if(qrCodeManager){
+      qrCodeManager.send({ connected: true });
+    }
     WA_CLIENT.SETUP(client, F.config['webhook'], F.config['token']);
   });
 

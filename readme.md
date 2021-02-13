@@ -1,6 +1,8 @@
-# W2API - WhatsApp REST API 
+# WHATS2API - WhatsApp REST API 
 
+<a href="http://chat-api.io/"><img width="400" src="https://s3-sa-east-1.amazonaws.com/cdn.chat-api.io/downloads/chat-api_badge.png" /></a></br>
 [![npm version](https://img.shields.io/npm/v/w2api-master.svg?color=green)](https://www.npmjs.com/package/w2api-master)
+<a href="https://discord.gg/9za3fCr"><img src="https://img.shields.io/discord/696393193591144532?color=blueviolet&label=discord&style=flat" /></a>
 
 Welcome to best REST API for WhatsApp. 
 This library provide you an complete solution for WhatsApp REST API without any necessities of code or change anything, obviously, if you want, you can contribute but give this information for us over PR. - Important to know, it's not an official solution - if you need something professional please don't use this package.
@@ -32,12 +34,26 @@ masterKey           : w2apiisthebestlibrary
 > npm install && node debug.js
 ```
 
-As soon you start the project navigate to address http://localhost/83430/qrCode and scan the qrCode using your mobile.
+As soon you start the project navigate to address http://localhost/{{instanceNumber}}/qrCode and wait for qrCode loads, this page also will auto refresh your qrCode each 30s, so if you does not have success on first attempt just wait and your qrCode will updeta himself. FYI this is run over WebSockets.
+
+## MultiInstances
+If you are looking how to run this on multi-instances please let me introduce another way, it's better then old fashion of PM2 and multiple clients on same server(if you don't know what is pm2, dont worry it's not important). The best you can do is run each instance separated, when you realize all that primary updates will be designed thinking on this. That way you avoid troubles on production enviroment effect multiple instances. To do this we gonna use Docker - Advise you to study a little bit docker for run this propperly. (an Docker-compose is alredy prepared for use)
+
+Docker image is available on [DockerHub](https://hub.docker.com/r/joaomirandas/whats2api): https://hub.docker.com/r/joaomirandas/whats2api
+
+You can built your own image with modifications, clone this repo to your preffered local, and run:
+```bash
+> docker build -t joaomirandas/whats2api .
+```
+This above command will create an container image of whats2API and prepare for run, when you feel good, just run:
+```bash
+> docker run --name instance1 -p 8001:8000 joaomirandas/whats2api
+```
 
 ### Documentation
 Full documentation library can be found over Postman Collection, best way to share regardless of the language you prefer to use.
 
-[![Run in Postman](https://run.pstmn.io/button.svg)](https://app.getpostman.com/run-collection/e785400267fa38cd5039)
+[![Run in Postman](https://run.pstmn.io/button.svg)](https://documenter.getpostman.com/view/7437195/Szf82Twx?version=latest) 0.0.8
 
 ## Using Library
 All the examples below are provided in CURL to allow as many users as possible to enjoy the solutions created, however if you use any specific language feel free to download the Postman collection here and get the code in its best language for you.
@@ -73,7 +89,7 @@ Request response:
 }
 ```
 
-### Sending Files
+### Sending Files (Image, PDF, TXT, etc..)
 This will be sent as attached file, it's important pay attention on maxfilesize allowed.
 ```curl
 curl --location --request POST 'localhost:8000/83430/sendFile?token=j19ksi1mim1lksm12213' \
@@ -88,7 +104,7 @@ curl --location --request POST 'localhost:8000/83430/sendFile?token=j19ksi1mim1l
 
 ### Sending Location
 This will send a location provided to user.
-*Performance Degradated on version 0.0.1*
+*Performance Operational on version 0.0.8*
 ```curl
 curl --location --request POST 'localhost:8000/83430/sendLocation?token=j19ksi1mim1lksm12213' \
 --header 'Content-Type: application/json' \
@@ -100,9 +116,44 @@ curl --location --request POST 'localhost:8000/83430/sendLocation?token=j19ksi1m
 }'
 ```
 
+### Sending Links with preview
+This will send a link with thumb preview
+*Performance operational on version 0.0.8*
+```curl
+curl --location --request POST 'localhost:8000/83430/sendLinkPreview?token=j19ksi1mim1lksm12213' \
+--header 'Content-Type: application/json' \
+--header 'Content-Type: text/plain' \
+--data-raw '{
+	"chatId":"PHONE-NUMBER@c.us",
+	"link": "https://github.com/joaomirandasa/whats2api/",
+	"text": "W2API - Best REST API for WhatsApp"
+}'
+```
+
+### Send Contact
+This route allow you to send a lot of information within an VCard.
+*Performance Operational on version 0.0.8*
+```curl
+curl --location --request POST 'localhost:8000/83430/sendContact?token=j19ksi1mim1lksm12213' \
+--header 'Content-Type: application/json' \
+--header 'Content-Type: text/plain' \
+--data-raw '{
+	"chatId":"PHONENUMBER@c.us",
+	"firstName": "Joao Vitor",
+	"middleName": "Miranda",
+	"lastName": "Santos",
+	"organization": "W2API",
+	"photo": "https://avatars3.githubusercontent.com/u/29043431?s=460",
+	"workPhone":"+5511995126279",
+	"title": "Best API Builder",
+	"url": "www.w2api.io",
+	"note": "W2API - Best REST API for WhatsApp"
+}'
+```
+
 ### Sending Giphy
 This will send an Giphy to user based on his web address.
-*Performance Degradated on version 0.0.1*
+*Performance Operational on version 0.0.8*
 ```curl
 curl --location --request POST 'localhost:8000/83430/sendGiphy?token=j19ksi1mim1lksm12213' \
 --header 'Content-Type: application/json' \
@@ -112,6 +163,59 @@ curl --location --request POST 'localhost:8000/83430/sendGiphy?token=j19ksi1mim1
 	"caption": "W2API - Best REST API for WhatsApp"
 }'
 ```
+
+### Change your Status
+This route allow you to change status information of number connected.
+*Performance Operational on version 0.0.8*
+```curl
+curl --location --request POST 'localhost:8000/83430/setMyStatus?token=j19ksi1mim1lksm12213' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+	"newStatus": "Work & Trust"
+}'
+```
+
+### Get Battery Level
+This route allow you to check battery level of physical device running WhatsApp.
+*Performance Operational on version 0.0.8*
+```curl
+curl --location --request GET 'localhost:8000/83430/w2apiisthebestlibrary/batteryLevel?token=j19ksi1mim1lksm12213'
+```
+
+### Read Instance
+This route allow you get a lot of informations about instance running and number connected to them.
+*Performance Operational on version 0.0.8*
+```curl
+curl --location --request GET 'localhost:8000/w2apiisthebestlibrary/readInstance'
+```
+
+### Restart Instance
+This route allow you restart your instance without aceess them over CLI or SSH, this really usefull with Docker.
+*Performance Operational on version 0.0.8*
+```curl
+curl --location --request GET 'localhost:8000/w2apiisthebestlibrary/reloadServer'
+```
+
+### Change Webhook
+This route allow you to change webhook address on production without restart your server or instance, it's an not permanent change, so if you change this in production and restart, on your next session webhook will continue to be the old one. Tho keep this change permanent you need to change config file on root folder of library.
+*Performance Operational on version 0.0.8*
+```curl
+curl --location --request POST 'localhost:8000/w2apiisthebestlibrary/setWebhook' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "webhook": "https://example2.requestcatcher.com"
+}'
+```
+
+## Receiving files
+Since version 0.0.8 it's implemented a new method to receive files, if some message is received as a file, PDF, Image or Audio your webhook will be fired containing an base64 encoded file in that format.
+```curl
+data:[<media type>][;charset=<character set>][;base64],<data>
+```
+But to became more aasy for who doenst know how to handle files in base64 format this library will save received files into his own cdn, so when messages contain a file, body of mesage will have an filelink address, and you can just access and get your file from there. These files as saved on /public/cdn/ and you can manage there if you preffer. 
+
+For users running into docker containers it's important realize of storage files as deletes every time you rebuild the container, for persist these files you need to create Volumes.
+
 ## Security
 
 To avoid issues with use of this library, it's not allowed start conversations, you only can answer who already talked to you. I can't garantee your number will not be blocked from WhatsApp - You need to be aware of the use you will be making of this tool, be aware you are only responsible for each and every use of this library.
